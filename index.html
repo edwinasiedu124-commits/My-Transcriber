@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Audio Transcriber</title>
+<style>
+:root{--bg:#fafafa;--card:#fff;--ink:#1c1c1e;--mute:#6b6b70;--line:#e3e3e6;--acc:#2f5bea;--ok:#1a8a4a}
+@media (prefers-color-scheme:dark){:root{--bg:#121214;--card:#1b1b1e;--ink:#ececee;--mute:#9a9aa1;--line:#2c2c30;--acc:#6f8cff;--ok:#4cc27f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px;display:grid;gap:14px}
+h1{font-size:1.4rem;margin:8px 0 0}
+.sub{color:var(--mute);margin:0;font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+#drop{border:2px dashed var(--line);border-radius:12px;padding:28px 12px;text-align:center;cursor:pointer;color:var(--mute)}
+#drop.over{border-color:var(--acc);color:var(--acc)}
+#drop b{color:var(--ink);display:block;word-break:break-all}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+progress{width:100%;height:10px;accent-color:var(--acc)}
+#status{margin:6px 0 0;color:var(--mute);font-size:.9rem}
+#out{max-height:55vh;overflow:auto}
+#out p{margin:0 0 10px;display:flex;gap:10px}
+#out time{color:var(--acc);font:12px/1.9 ui-monospace,monospace;flex:none}
+.err{color:#d33}
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Free Audio Transcriber</h1>
+    <p class="sub">Runs Whisper entirely in your browser. Your audio never leaves your device.</p>
+  </div>
+
+  <div class="card">
+    <div id="drop"><span id="dropText">Drop an audio/video file here, or tap to choose</span></div>
+    <input id="file" type="file" accept="audio/*,video/*" hidden>
+    <div class="row" style="margin-top:12px">
+      <select id="model">
+        <option value="Xenova/whisper-tiny.en">Tiny (fastest, ~40 MB)</option>
+        <option value="Xenova/whisper-base.en">Base (fast, ~80 MB)</option>
+        <option value="Xenova/whisper-small.en" selected>Small (best here, ~250 MB)</option>
+      </select>
+      <button id="go" class="p" disabled>Transcribe</button>
+      <button id="cancel" hidden>Cancel</button>
+    </div>
+    <progress id="bar" value="0" max="100" hidden style="margin-top:12px"></progress>
+    <p id="status">Choose a file to begin.</p>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <div class="row" style="margin-bottom:12px">
+      <button id="copy">Copy</button>
+      <button id="dl">Download .txt</button>
+      <label class="sub"><input type="checkbox" id="ts" checked> Timestamps</label>
+    </div>
+    <div id="out"></div>
+  </div>
+</main>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const SR = 16000, SEG = 5 * 60 * SR;          // 5-minute segments keep memory safe
+const LIB = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/+esm";
+
+/* ---------- worker (inlined as a Blob) ---------- */
+const workerSrc = `
+import { pipeline, env } from "${LIB}";
+env.allowLocalModels = false;
+let asr = null;
+async function load(model, device) {
+  const files = {};
+  const cb = p => {
+    if (p.status === "progress" && p.file) {
+      files[p.file] = p;
+      let loaded = 0, total = 0;
+      for (const f of Object.values(files)) { loaded += f.loaded; total += f.total; }
+      postMessage({ type: "download", pct: total ? loaded / total * 100 : 0 });
+    }
+  };
+  const opts = device === "webgpu"
+    ? { device, dtype: { encoder_model: "fp32", decoder_model_merged: "q4" }, progress_callback: cb }
+    : { device: "wasm", dtype: "q8", progress_callback: cb };
+  return pipeline("automatic-speech-recognition", model, opts);
+}
+onmessage = async ({ data }) => {
+  try {
+    if (data.type === "load") {
+      let device = navigator.gpu ? "webgpu" : "wasm";
+      try { asr = await load(data.model, device); }
+      catch (e) { if (device === "webgpu") { device = "wasm"; asr = await load(data.model, device); } else throw e; }
+      postMessage({ type: "ready", device });
+    } else if (data.type === "run") {
+      const out = await asr(data.audio, { chunk_length_s: 30, stride_length_s: 5, return_timestamps: true });
+      postMessage({ type: "segment", index: data.index, out });
+    }
+  } catch (e) { postMessage({ type: "error", message: String(e && e.message || e) }); }
+};`;
+let worker = null;
+function newWorker() {
+  if (worker) worker.terminate();
+  const url = URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" }));
+  worker = new Worker(url, { type: "module" });
+  worker.onmessage = onMsg;
+  worker.onerror = e => fail(e.message || "Worker failed to start");
+}
+
+/* ---------- state ---------- */
+let file = null, segments = [], entries = [], total = 0, running = false;
+
+const fmt = s => {
+  s = Math.max(0, Math.floor(s));
+  const h = String(Math.floor(s / 3600)).padStart(2, "0");
+  const m = String(Math.floor(s % 3600 / 60)).padStart(2, "0");
+  return `${h}:${m}:${String(s % 60).padStart(2, "0")}`;
+};
+const setStatus = (t, err) => { $("status").textContent = t; $("status").className = err ? "err" : ""; };
+function fail(msg) { setStatus("Error: " + msg, true); finish(false); }
+function finish(ok) {
+  running = false; $("go").disabled = !file; $("cancel").hidden = true;
+  if (ok) { setStatus("Done."); $("bar").value = 100; }
+}
+
+/* ---------- file picking ---------- */
+function pick(f) {
+  if (!f) return;
+  file = f; $("go").disabled = false;
+  $("dropText").innerHTML = `<b>${f.name}</b>${(f.size / 1048576).toFixed(1)} MB`;
+  setStatus("Ready.");
+}
+$("drop").onclick = () => $("file").click();
+$("file").onchange = e => pick(e.target.files[0]);
+["dragover", "dragenter"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", e => pick(e.dataTransfer.files[0]));
+
+/* ---------- audio decode ---------- */
+async function decode(f) {
+  const ctx = new AudioContext({ sampleRate: SR });
+  const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+  ctx.close();
+  const a = buf.getChannelData(0);
+  if (buf.numberOfChannels < 2) return a;
+  const b = buf.getChannelData(1), m = new Float32Array(a.length);
+  for (let i = 0; i < a.length; i++) m[i] = (a[i] + b[i]) / 2;
+  return m;
+}
+
+/* ---------- run ---------- */
+$("go").onclick = async () => {
+  if (!file || running) return;
+  running = true; entries = []; $("out").innerHTML = ""; $("result").hidden = true;
+  $("go").disabled = true; $("cancel").hidden = false; $("bar").hidden = false; $("bar").value = 0;
+  try {
+    setStatus("Decoding audio…");
+    const audio = await decode(file);
+    segments = [];
+    for (let i = 0; i < audio.length; i += SEG) segments.push(audio.slice(i, i + SEG));
+    total = segments.length;
+    setStatus("Loading model (first run downloads it, then it's cached)…");
+    newWorker();
+    worker.postMessage({ type: "load", model: $("model").value });
+  } catch (e) { fail("Could not decode this file. " + e.message); }
+};
+
+$("cancel").onclick = () => {
+  if (worker) worker.terminate(); worker = null;
+  setStatus("Cancelled."); finish(false);
+  if (entries.length) $("result").hidden = false;
+};
+
+function onMsg({ data }) {
+  if (data.type === "download") {
+    $("bar").value = data.pct;
+    setStatus(`Downloading model… ${Math.round(data.pct)}%`);
+  } else if (data.type === "ready") {
+    $("bar").value = 0;
+    setStatus(`Transcribing on ${data.device === "webgpu" ? "GPU" : "CPU (slower)"}… segment 1/${total}`);
+    $("result").hidden = false;
+    worker.postMessage({ type: "run", index: 0, audio: segments[0] });
+  } else if (data.type === "segment") {
+    const off = data.index * SEG / SR;
+    const chunks = data.out.chunks && data.out.chunks.length ? data.out.chunks : [{ text: data.out.text, timestamp: [0] }];
+    for (const c of chunks) {
+      const text = c.text.trim();
+      if (text) entries.push({ t: (c.timestamp[0] || 0) + off, text });
+    }
+    render();
+    const next = data.index + 1;
+    $("bar").value = next / total * 100;
+    if (next < total) {
+      setStatus(`Transcribing… segment ${next + 1}/${total}`);
+      segments[data.index] = null;                      // free memory
+      worker.postMessage({ type: "run", index: next, audio: segments[next] });
+    } else {
+      finish(true); worker.terminate(); worker = null;
+    }
+  } else if (data.type === "error") {
+    fail(data.message);
+  }
+}
+
+/* ---------- output ---------- */
+function render() {
+  const showTs = $("ts").checked;
+  $("out").innerHTML = "";
+  for (const e of entries) {
+    const p = document.createElement("p");
+    if (showTs) { const t = document.createElement("time"); t.textContent = fmt(e.t); p.append(t); }
+    p.append(document.createTextNode(e.text));
+    $("out").append(p);
+  }
+  $("out").scrollTop = $("out").scrollHeight;
+}
+const asText = () => entries.map(e => ($("ts").checked ? `[${fmt(e.t)}] ` : "") + e.text).join("\n");
+$("ts").onchange = render;
+$("copy").onclick = async () => {
+  await navigator.clipboard.writeText(asText());
+  $("copy").textContent = "Copied!"; setTimeout(() => $("copy").textContent = "Copy", 1400);
+};
+$("dl").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([asText()], { type: "text/plain" }));
+  a.download = (file ? file.name.replace(/\.[^.]+$/, "") : "transcript") + ".txt";
+  a.click();
+};
+</script>
+</body>
+</html>
