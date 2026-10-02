@@ -1,0 +1,8 @@
+{
+  "name": "Free Audio Transcriber",
+  "description": "Runs Whisper entirely in your browser. Your audio never leaves your device.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
