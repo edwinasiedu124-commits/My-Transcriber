@@ -17,129 +17,43 @@
       :root {
         --bg: #fafafa;
         --card: #fff;
-        --ink: #1c1c1e;
-        --mute: #6b6b70;
-        --line: #e3e3e6;
-        --acc: #2f5bea;
-        --ok: #1a8a4a;
+        --ink:#1c1c1e;
+        --mute:#6b6b70;
+        --line:#e3e3e6;
+        --acc:#2f5bea;
+        --ok:#1a8a4a
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #121214;
-          --card: #1b1b1e;
-          --ink: #ececee;
-          --mute: #9a9aa1;
-          --line: #2c2c30;
-          --acc: #6f8cff;
-          --ok: #4cc27f;
+      @media (prefers-color-scheme:dark){
+        :root{
+          --bg:#121214;
+          --card:#1b1b1e;
+          --ink:#ececee;
+          --mute:#9a9aa1;
+          --line:#2c2c30;
+          --acc:#6f8cff;
+          --ok:#4cc27f
         }
       }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--ink);
-        font:
-          16px/1.5 system-ui,
-          sans-serif;
-      }
-      main {
-        max-width: 760px;
-        margin: 0 auto;
-        padding: 20px 16px 60px;
-        display: grid;
-        gap: 14px;
-      }
-      h1 {
-        font-size: 1.4rem;
-        margin: 8px 0 0;
-      }
-      .sub {
-        color: var(--mute);
-        margin: 0;
-        font-size: 0.9rem;
-      }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 16px;
-      }
-      #drop {
-        border: 2px dashed var(--line);
-        border-radius: 12px;
-        padding: 28px 12px;
-        text-align: center;
-        cursor: pointer;
-        color: var(--mute);
-      }
-      #drop.over {
-        border-color: var(--acc);
-        color: var(--acc);
-      }
-      #drop b {
-        color: var(--ink);
-        display: block;
-        word-break: break-all;
-      }
-      .row {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      select,
-      button {
-        font: inherit;
-        padding: 9px 14px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
-        background: var(--card);
-        color: var(--ink);
-      }
-      button {
-        cursor: pointer;
-      }
-      button.p {
-        background: var(--acc);
-        border-color: var(--acc);
-        color: #fff;
-      }
-      button:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
-      }
-      progress {
-        width: 100%;
-        height: 10px;
-        accent-color: var(--acc);
-      }
-      #status {
-        margin: 6px 0 0;
-        color: var(--mute);
-        font-size: 0.9rem;
-      }
-      #out {
-        max-height: 55vh;
-        overflow: auto;
-      }
-      #out p {
-        margin: 0 0 10px;
-        display: flex;
-        gap: 10px;
-      }
-      #out time {
-        color: var(--acc);
-        font:
-          12px/1.9 ui-monospace,
-          monospace;
-        flex: none;
-      }
-      .err {
-        color: #d33;
-      }
+      *{box-sizing:border-box}
+      body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
+      main{max-width:760px;margin:0 auto;padding:20px 16px 60px;display:grid;gap:14px}
+      h1{font-size:1.4rem;margin:8px 0 0}
+      .sub{color:var(--mute);margin:0;font-size:.9rem}
+      .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+      #drop{border:2px dashed var(--line);border-radius:12px;padding:28px 12px;text-align:center;cursor:pointer;color:var(--mute)}
+      #drop.over{border-color:var(--acc);color:var(--acc)}
+      #drop b{color:var(--ink);display:block;word-break:break-all}
+      .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+      select,button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+      button{cursor:pointer}
+      button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+      button:disabled{opacity:.45;cursor:not-allowed}
+      progress{width:100%;height:10px;accent-color:var(--acc)}
+      #status{margin:6px 0 0;color:var(--mute);font-size:.9rem}
+      #out{max-height:55vh;overflow:auto}
+      #out p{margin:0 0 10px;display:flex;gap:10px}
+      #out time{color:var(--acc);font:12px/1.9 ui-monospace,monospace:flex:none}
+      .err{color:#d33}
     </style>
   </head>
   <body>
@@ -154,41 +68,50 @@
 
       <div class="card">
         <div id="drop">
-          <span id="dropText"
-            >Drop an audio/video file here, or tap to choose</span
-          >
+          <span id="dropText">Drop an audio/video file here, or tap to choose</span>
         </div>
         <input id="file" type="file" accept="audio/*,video/*" hidden />
-        <div class="row" style="margin-top: 12px">
+        <div class="row" style="margin-top:12px">
           <select id="model">
             <option value="Xenova/whisper-tiny.en">
               Tiny (fastest, ~40 MB)
             </option>
             <option value="Xenova/whisper-base.en">Base (fast, ~80 MB)</option>
             <option value="Xenova/whisper-small.en" selected>
-              Small (best here, ~250 MB)
+              Small (balanced, ~250 MB)
+            </option>
+            <option value="Xenova/whisper-medium.en">
+              Medium (higher quality, ~769 MB)
+            </option>
+            <option value="Xenova/whisper-large-v2.en">
+              Large (highest quality, ~1550 MB)
             </option>
           </select>
           <button id="go" class="p" disabled>Transcribe</button>
           <button id="cancel" hidden>Cancel</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <label class="sub"><input type="checkbox" id="advToggle"> Show advanced settings</label>
+        </div>
+        <div class="row" id="advancedSettings" style="display:none; margin-top:12px">
+          <label>Chunk length (seconds): <input type="number" id="chunkLength" value="30" min="5" max="120" step="5"></label>
+          <label>Stride length (seconds): <input type="number" id="strideLength" value="5" min="0" max="60" step="1"></label>
         </div>
         <progress
           id="bar"
           value="0"
           max="100"
           hidden
-          style="margin-top: 12px"
+          style="margin-top:12px"
         ></progress>
-        <p id="status">Choose a file to begin.</p>
+        <p id="status">Choose a file to begin.</p> <span id="hwIndicator"></span>
       </div>
 
       <div class="card" id="result" hidden>
-        <div class="row" style="margin-bottom: 12px">
+        <div class="row" style="margin-bottom:12px">
           <button id="copy">Copy</button>
           <button id="dl">Download .txt</button>
-          <label class="sub"
-            ><input type="checkbox" id="ts" checked /> Timestamps</label
-          >
+          <label class="sub"><input type="checkbox" id="ts" checked /> Timestamps</label>
         </div>
         <div id="out"></div>
       </div>
@@ -229,7 +152,20 @@ onmessage = async ({ data }) => {
       catch (e) { if (device === "webgpu") { device = "wasm"; asr = await load(data.model, device); } else throw e; }
       postMessage({ type: "ready", device });
     } else if (data.type === "run") {
-      const out = await asr(data.audio, { chunk_length_s: 30, stride_length_s: 5, return_timestamps: true });
+      let out;
+      if (data.timestamps ?? true) {
+        out = await asr(data.audio, {
+          chunk_length_s: data.chunkLength ?? 30,
+          stride_length_s: data.strideLength ?? 5,
+          return_timestamps: true
+        });
+      } else {
+        out = await asr(data.audio, {
+          chunk_length_s: data.chunkLength ?? 30,
+          stride_length_s: data.strideLength ?? 5,
+          return_timestamps: false
+        });
+      }
       postMessage({ type: "segment", index: data.index, out });
     }
   } catch (e) { postMessage({ type: "error", message: String(e && e.message || e) }); }
@@ -238,7 +174,7 @@ onmessage = async ({ data }) => {
       function newWorker() {
         if (worker) worker.terminate();
         const url = URL.createObjectURL(
-          new Blob([workerSrc], { type: "text/javascript" }),
+          new Blob([workerSrc], { type: "text/javascript" })
         );
         worker = new Worker(url, { type: "module" });
         worker.onmessage = onMsg;
@@ -251,6 +187,8 @@ onmessage = async ({ data }) => {
         entries = [],
         total = 0,
         running = false;
+      let chunkLengthSec = 30;
+      let strideLengthSec = 5;
 
       const fmt = (s) => {
         s = Math.max(0, Math.floor(s));
@@ -359,8 +297,9 @@ onmessage = async ({ data }) => {
           setStatus(
             `Transcribing on ${data.device === "webgpu" ? "GPU" : "CPU (slower)"}… segment 1/${total}`,
           );
+          $("hwIndicator").textContent = data.device === "webgpu" ? "GPU" : "CPU";
           $("result").hidden = false;
-          worker.postMessage({ type: "run", index: 0, audio: segments[0] });
+          worker.postMessage({ type: "run", index: 0, audio: segments[0], chunkLength: chunkLengthSec, strideLength: strideLengthSec, timestamps: $("ts").checked });
         } else if (data.type === "segment") {
           const off = (data.index * SEG) / SR;
           const chunks =
@@ -381,6 +320,9 @@ onmessage = async ({ data }) => {
               type: "run",
               index: next,
               audio: segments[next],
+              chunkLength: chunkLengthSec,
+              strideLength: strideLengthSec,
+              timestamps: $("ts").checked,
             });
           } else {
             finish(true);
@@ -421,7 +363,7 @@ onmessage = async ({ data }) => {
       $("dl").onclick = () => {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(
-          new Blob([asText()], { type: "text/plain" }),
+          new Blob([asText()], { type: "text/plain" })
         );
         a.download =
           (file ? file.name.replace(/\.[^.]+$/, "") : "transcript") + ".txt";
